@@ -1,0 +1,27 @@
+# ── Secrets ────────────────────────────────────────────────────
+.env
+
+# ── Python ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ── Virtual environment ────────────────────────────────────────
+.venv/
+venv/
+
+# ── Generated artifacts ────────────────────────────────────────
+models/*.joblib
+models/*.pkl
+outputs/*.csv
+outputs/*.log
+data/processed/*
+!data/processed/.gitkeep
+
+# ── OS / IDE ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

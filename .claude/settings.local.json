@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m venv .venv)",
+      "Bash(.venv/Scripts/python.exe --version)",
+      "Bash(.venv/Scripts/python.exe -m pip --version)",
+      "Bash(.venv/Scripts/python.exe -m pip install --upgrade pip -q)",
+      "Bash(.venv/Scripts/python.exe -m pip install -r requirements.txt)",
+      "Bash(.venv/Scripts/python.exe *)",
+      "Bash(grep -c '^.env$' .gitignore)",
+      "Bash(echo \"\\(.env is matched by .gitignore: $\\(grep -c '^.env$' .gitignore\\) rule\\)\")",
+      "Bash(echo \"EXIT=$?\")"
+    ]
+  }
+}
