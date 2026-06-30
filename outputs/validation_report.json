@@ -1,0 +1,185 @@
+{
+  "overall_pass": false,
+  "n_checks": 8,
+  "n_failed": 2,
+  "failed": [
+    "cluster_separation",
+    "frequency_completeness"
+  ],
+  "checks": {
+    "cluster_separation": {
+      "pass": false,
+      "skipped": false,
+      "threshold": 2.0,
+      "actual": 1.5516,
+      "detail": {
+        "cluster_col": "cluster",
+        "rfm_cols": [
+          "recency",
+          "frequency",
+          "monetary"
+        ],
+        "threshold": 2.0,
+        "per_feature": {
+          "recency": {
+            "f_stat": 0.3777,
+            "p_value": 0.8934
+          },
+          "frequency": {
+            "f_stat": 1.5516,
+            "p_value": 0.1582
+          },
+          "monetary": {
+            "f_stat": 1.4248,
+            "p_value": 0.2018
+          }
+        },
+        "n_clusters": 7,
+        "max_f_stat": 1.5516,
+        "actual": 1.5516
+      }
+    },
+    "silhouette_score": {
+      "pass": true,
+      "skipped": false,
+      "threshold": 0.25,
+      "actual": 0.3762,
+      "detail": {
+        "threshold": 0.25,
+        "stored_score": 0.3762,
+        "n_samples": 1000,
+        "n_clusters": 7,
+        "recomputed_score": 0.3762,
+        "actual": 0.3762,
+        "stored_matches_recomputed": true
+      }
+    },
+    "category_consistency": {
+      "pass": true,
+      "skipped": false,
+      "threshold": 0.05,
+      "actual": 0.0,
+      "detail": {
+        "freq_col": "frequency",
+        "tolerance": 0,
+        "threshold": 0.05,
+        "cat_cols": [
+          "catcount_Accessories",
+          "catcount_Apparel",
+          "catcount_Beauty",
+          "catcount_Electronics",
+          "catcount_Footwear",
+          "catcount_Home",
+          "catcount_Sports",
+          "catcount_Uncategorized"
+        ],
+        "bad_row_count": 0,
+        "total_rows": 1000,
+        "bad_row_frac": 0.0,
+        "actual": 0.0,
+        "worst_offenders": []
+      }
+    },
+    "top_category_accuracy": {
+      "pass": true,
+      "skipped": false,
+      "threshold": 0.4,
+      "actual": 0.886,
+      "detail": {
+        "top_category_col": "top_category",
+        "min_match_rate": 0.4,
+        "n_categories": 7,
+        "chance_baseline": 0.1429,
+        "threshold": 0.4,
+        "match_rate": 0.886,
+        "actual": 0.886,
+        "n_compared": 1000,
+        "n_mismatched": 114
+      }
+    },
+    "frequency_completeness": {
+      "pass": false,
+      "skipped": false,
+      "threshold": 0.95,
+      "actual": 0.9474,
+      "detail": {
+        "freq_col": "frequency",
+        "tolerance": 0.05,
+        "threshold": 0.95,
+        "avg_capture_ratio": 0.9474,
+        "actual": 0.9474,
+        "n_customers_checked": 1000,
+        "n_undercounted": 415,
+        "capture_ratio_distribution": {
+          "min": 0.5,
+          "p05": 0.8182,
+          "p25": 0.9,
+          "p50": 1.0,
+          "p75": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        }
+      }
+    },
+    "unattributed_revenue": {
+      "pass": true,
+      "skipped": false,
+      "threshold": 0.05,
+      "actual": 0.0,
+      "detail": {
+        "threshold": 0.05,
+        "unattributed_rows": 0,
+        "total_rows": 10200,
+        "unattributed_row_pct": 0.0,
+        "unattributed_revenue": 0.0,
+        "total_revenue": 5717868.0,
+        "unattributed_revenue_pct": 0.0,
+        "actual": 0.0
+      }
+    },
+    "near_duplicate_orders": {
+      "pass": true,
+      "skipped": false,
+      "threshold": 0.02,
+      "actual": 0.0,
+      "detail": {
+        "similarity_threshold": 0.9,
+        "threshold": 0.02,
+        "flagged_near_duplicates": 0,
+        "total_rows": 10200,
+        "flagged_pct": 0.0,
+        "actual": 0.0,
+        "examples": [],
+        "note": "flagged for human review; NOT auto-dropped"
+      }
+    },
+    "qty_sanity": {
+      "pass": true,
+      "skipped": false,
+      "threshold": 0.05,
+      "actual": 0.0,
+      "detail": {
+        "qty_col": "quantity",
+        "min_val": 1,
+        "max_val": null,
+        "outlier_pct": 99.5,
+        "require_integer": true,
+        "threshold": 0.05,
+        "total_rows": 10200,
+        "kind_counts": {
+          "ok_int": 10200
+        },
+        "missing": 0,
+        "non_positive_or_below_min": 0,
+        "non_integer": 0,
+        "non_numeric_text": 0,
+        "over_max": 0,
+        "outlier_threshold_value": 8.0,
+        "statistical_outliers": 0,
+        "bad_pct": 0.0,
+        "actual": 0.0,
+        "note": "rows flagged, not imputed"
+      }
+    }
+  }
+}

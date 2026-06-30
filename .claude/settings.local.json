@@ -9,7 +9,23 @@
       "Bash(.venv/Scripts/python.exe *)",
       "Bash(grep -c '^.env$' .gitignore)",
       "Bash(echo \"\\(.env is matched by .gitignore: $\\(grep -c '^.env$' .gitignore\\) rule\\)\")",
-      "Bash(echo \"EXIT=$?\")"
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(.venv/Scripts/python *)",
+      "Bash(python -m unittest tests.test_validation -v)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app.py'\\).read\\(\\)\\); print\\('app.py: syntax OK'\\)\")",
+      "Bash(python -m unittest tests.test_validation)",
+      "Bash(python -c ' *)",
+      "Bash(python -m unittest tests.test_validation tests.test_revenue)",
+      "Bash(python -m unittest tests.test_revenue -v)",
+      "Bash(python -m unittest discover -s tests -p \"test_*.py\")",
+      "Bash(python -m pytest tests/test_revenue.py tests/test_validation.py -q)",
+      "Bash(python -c \"import importlib.util,sys; spec=importlib.util.spec_from_file_location\\('tr','tests/test_revenue.py'\\); m=importlib.util.module_from_spec\\(spec\\); spec.loader.exec_module\\(m\\); print\\('test_revenue imports OK; pytest-style test fns:', [n for n in dir\\(m\\) if n.startswith\\('test_'\\)][:6]\\)\")",
+      "Bash(python -c \"import matplotlib; print\\('matplotlib', matplotlib.__version__\\)\")",
+      "Bash(python -c \"from sklearn.metrics import adjusted_rand_score; print\\('ARI ok'\\)\")",
+      "Bash(python -c \"import kaleido; print\\('kaleido', kaleido.__version__\\)\")",
+      "Bash(python -c \"import PIL; print\\('PIL ok'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('src/cluster.py'\\).read\\(\\)\\); print\\('cluster.py syntax OK'\\)\")",
+      "Bash(python *)"
     ]
   }
 }

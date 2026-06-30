@@ -6,6 +6,7 @@ Flow (built across Phase 7 steps):
   7.2 schema confirm    -> review/edit the column mapping
   7.3 validation report -> clean data + show report
   7.4 cluster charts    -> features + clustering + plots
+  6.5 QA gate           -> validate segmentation; HALT before personas if any check fails
   7.5 action recs       -> personas + per-segment actions
   7.6 CSV download      -> export labeled customers
 
@@ -17,21 +18,30 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pandas as pd
 import plotly.express as px
 import streamlit as st
+from sklearn.preprocessing import StandardScaler
 
 # Make project imports work when launched via `streamlit run`.
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from config import RAW_DIR, has_api_key  # noqa: E402
+from config import AT_RISK_PATTERNS, RAW_DIR, has_api_key  # noqa: E402
 from src.cleaner import clean_data  # noqa: E402
-from src.cluster import run_clustering  # noqa: E402
-from src.features import engineer_features  # noqa: E402
+from src.cluster import run_clustering, save_diagnostic_plot, select_optimal_k  # noqa: E402
+from src.features import engineer_features, feature_matrix  # noqa: E402
 from src.chat import EXAMPLE_PROMPTS, answer_question  # noqa: E402
 from src.personas import label_customers  # noqa: E402
+from src.revenue import (  # noqa: E402
+    compute_clv_at_risk,
+    compute_revenue_concentration,
+    format_currency,
+    format_percent,
+)
 from src.schema_mapper import finalize_mapping, run_schema_mapping  # noqa: E402
+from src.validation import prepare_validation_inputs, run_validation  # noqa: E402
 
 st.set_page_config(
     page_title="Customer Segmentation",
@@ -47,7 +57,11 @@ def _init_state() -> None:
         "normalized_df": None,  # schema-normalized DataFrame (Phase 2 output)
         "clean_df": None,  # cleaned DataFrame (Phase 3)
         "report": None,  # validation report
+        "k_selection": None,  # select_optimal_k() result (table + recommended_k)
+        "k_plot_path": None,  # saved diagnostic plot artifact path
         "cluster_out": None,  # run_clustering() output
+        "gate_report": None,  # run_validation() report for the current clustering
+        "gate_signoff": False,  # human override to proceed past a FAILED gate
         "labeled": None,  # label_customers() output
     }
     for key, val in defaults.items():
@@ -58,9 +72,10 @@ def _reset_downstream() -> None:
     """Clear cached results when a new file is uploaded."""
     for key in (
         "mapping_session", "normalized_df", "clean_df", "report",
-        "cluster_out", "labeled",
+        "k_selection", "k_plot_path", "cluster_out", "gate_report", "labeled",
     ):
         st.session_state[key] = None
+    st.session_state["gate_signoff"] = False
 
 
 def render_schema_confirm(session: dict) -> None:
@@ -191,7 +206,10 @@ def render_clustering(clean_df) -> None:
         with st.spinner("Engineering features and clustering..."):
             features = engineer_features(clean_df)
             st.session_state["cluster_out"] = run_clustering(features, save=True)
-            st.session_state["labeled"] = None  # personas recomputed in step 7.5
+            # New clustering -> re-run the QA gate and recompute personas (7.5).
+            st.session_state["gate_report"] = None
+            st.session_state["gate_signoff"] = False
+            st.session_state["labeled"] = None
 
     out = st.session_state["cluster_out"]
     result = out["result"]
@@ -236,6 +254,85 @@ def render_clustering(clean_df) -> None:
         )
 
 
+def render_segmentation_gate(clean_df, cluster_out, raw_orders_df) -> bool:
+    """
+    Step 6.5 - independent QA gate. Runs AFTER clustering and BEFORE persona
+    labeling / actions / export. Recomputes ground truth from the source data
+    (cluster separation, silhouette, category consistency, top-category accuracy,
+    frequency completeness, unattributed revenue, near-dupes, qty sanity) and
+    HALTS the flow if any check fails — no auto-fix, human sign-off required.
+
+    Returns True only when it is safe to continue to persona labeling: either all
+    checks passed, or a human explicitly signed off on the failures.
+    """
+    st.subheader("4.5 - Segmentation QA gate")
+
+    # Compute the gate once per clustering; cache the report in session_state.
+    if st.session_state["gate_report"] is None:
+        with st.spinner("Validating segmentation against source data..."):
+            features = engineer_features(clean_df)
+            matrix = feature_matrix(features)
+            # Recompute X independently (don't trust the stored scaler).
+            X = StandardScaler().fit_transform(matrix.to_numpy())
+            labels = cluster_out["result"]["cluster"].to_numpy()
+            stored_sil = cluster_out["metrics"].get("silhouette")
+            kwargs = prepare_validation_inputs(
+                clean_df=clean_df,
+                cluster_result=cluster_out["result"],
+                X=X,
+                cluster_labels=labels,
+                raw_orders_df=raw_orders_df,  # ORIGINAL id formats (checks 6-9)
+                labeled_df=None,  # personas come AFTER the gate
+                stored_silhouette=stored_sil,
+            )
+            st.session_state["gate_report"] = run_validation(
+                print_summary=False, **kwargs
+            )
+
+    report = st.session_state["gate_report"]
+    checks = report["checks"]
+
+    # Per-check status table.
+    rows = []
+    for name, entry in checks.items():
+        status = "SKIP" if entry["skipped"] else ("PASS" if entry["pass"] else "FAIL")
+        rows.append(
+            {
+                "check": name,
+                "status": status,
+                "actual": entry["actual"],
+                "threshold": entry["threshold"],
+            }
+        )
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.caption(f"Report written to `{report.get('report_path', 'outputs/validation_report.json')}`.")
+
+    if report["overall_pass"]:
+        st.success("All QA checks passed — safe to proceed to persona labeling.")
+        return True
+
+    # FAILED: halt loudly, surface details, require explicit human sign-off.
+    st.error(
+        f"Pipeline HALTED — {report['n_failed']} check(s) failed: "
+        f"{', '.join(report['failed'])}. Persona labeling, actions, export and "
+        "chat are blocked until a human reviews these results."
+    )
+    for name in report["failed"]:
+        with st.expander(f"Failure detail — {name}"):
+            st.json(checks[name]["detail"])
+
+    signoff = st.checkbox(
+        "I have reviewed the failures above and sign off on proceeding anyway "
+        "(outputs may be fabricated, trivial, or inconsistent).",
+        value=st.session_state["gate_signoff"],
+        key="gate_signoff_checkbox",
+    )
+    st.session_state["gate_signoff"] = signoff
+    if not signoff:
+        st.info("Continuing requires sign-off above, or fix the data and re-segment.")
+    return signoff
+
+
 def render_actions(cluster_out) -> None:
     """Step 7.5 - label segments with personas and show recommended actions."""
     st.subheader("5 - Recommended actions per segment")
@@ -265,6 +362,91 @@ def render_actions(cluster_out) -> None:
             )
             if seg.get("reasoning"):
                 st.caption(seg["reasoning"])
+
+
+def render_revenue_impact(df) -> None:
+    """Revenue Impact view: concentration (Pareto) + CLV-at-risk over segments."""
+    st.subheader("Revenue Impact")
+
+    conc = compute_revenue_concentration(df, "persona", "monetary")
+    at_risk = compute_clv_at_risk(df, "persona", "clv", AT_RISK_PATTERNS)
+
+    if conc.empty:
+        st.info("No positive revenue values available to analyze.")
+        return
+
+    # Headline insight from the top revenue-concentrated segment.
+    top = conc.iloc[0]
+    st.markdown(
+        f"## {top['segment']} = {format_percent(top['pct_of_customers'])} of "
+        f"customers but {format_percent(top['pct_of_revenue'])} of revenue"
+    )
+
+    # KPI row.
+    total_revenue = conc.attrs["total_revenue"]
+    total_customers = conc.attrs["total_customers"]
+    avg_rev = total_revenue / total_customers if total_customers else 0.0
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Total revenue", format_currency(total_revenue))
+    k2.metric(
+        "CLV at risk",
+        format_currency(at_risk["total_clv_at_risk"]),
+        delta=f"{format_percent(at_risk['pct_of_total_clv_at_risk'])} of CLV",
+        delta_color="inverse",
+    )
+    k3.metric(
+        "Customers at risk",
+        f"{at_risk['customer_count_at_risk']:,}",
+        delta=f"{format_percent(at_risk['pct_of_total_customers_at_risk'])} of base",
+        delta_color="inverse",
+    )
+    k4.metric("Avg revenue / customer", format_currency(avg_rev))
+
+    # At-risk callout, auto-generated.
+    if at_risk["any_at_risk"]:
+        st.error(
+            f"{format_currency(at_risk['total_clv_at_risk'])} "
+            f"({format_percent(at_risk['pct_of_total_clv_at_risk'])} of total CLV) "
+            f"sits in at-risk segments across {at_risk['customer_count_at_risk']:,} "
+            f"customers: {', '.join(at_risk['matched_segments'])}."
+        )
+    else:
+        st.info("No at-risk segment found among the current personas.")
+
+    # Grouped bar: % of customers vs % of revenue per segment.
+    long = conc.melt(
+        id_vars="segment",
+        value_vars=["pct_of_customers", "pct_of_revenue"],
+        var_name="metric",
+        value_name="pct",
+    )
+    long["metric"] = long["metric"].map(
+        {"pct_of_customers": "% of customers", "pct_of_revenue": "% of revenue"}
+    )
+    st.plotly_chart(
+        px.bar(
+            long, x="segment", y="pct", color="metric", barmode="group",
+            title="Customer share vs revenue share by segment",
+            labels={"pct": "Percent", "segment": "Segment"},
+        ),
+        use_container_width=True,
+    )
+
+    # Formatted table (no raw floats).
+    display = pd.DataFrame({
+        "Segment": conc["segment"],
+        "Customers": conc["customer_count"].map(lambda v: f"{int(v):,}"),
+        "% of customers": conc["pct_of_customers"].map(format_percent),
+        "Total revenue": conc["total_revenue"].map(format_currency),
+        "% of revenue": conc["pct_of_revenue"].map(format_percent),
+        "Avg revenue / customer": conc["avg_revenue_per_customer"].map(format_currency),
+    })
+    st.dataframe(display, use_container_width=True, hide_index=True)
+
+    excluded = conc.attrs["excluded_count"]
+    if excluded:
+        st.caption(f"{excluded} customer(s) excluded from revenue math (missing/zero spend).")
 
 
 def render_download() -> None:
@@ -391,10 +573,23 @@ def main() -> None:
     # Step 7.4: clustering + charts
     render_clustering(st.session_state["clean_df"])
 
-    # Step 7.5: persona labeling + action recommendations
+    # Step 6.5: QA gate — must pass (or be signed off) before anything downstream.
     if st.session_state["cluster_out"] is None:
         return
+    gate_ok = render_segmentation_gate(
+        st.session_state["clean_df"],
+        st.session_state["cluster_out"],
+        st.session_state["normalized_df"],
+    )
+    if not gate_ok:
+        return  # HALT: do not promote to persona labeling / dashboard / export
+
+    # Step 7.5: persona labeling + action recommendations
     render_actions(st.session_state["cluster_out"])
+
+    # Revenue Impact view (concentration + CLV-at-risk)
+    if st.session_state["labeled"] is not None:
+        render_revenue_impact(st.session_state["labeled"]["labeled"].reset_index())
 
     # Step 7.6: CSV export
     if st.session_state["labeled"] is not None:

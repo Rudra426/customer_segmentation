@@ -23,6 +23,7 @@ pydantic>=2.6
 
 # ── Visualization ──────────────────────────────────────────────
 plotly>=5.20
+matplotlib>=3.8        # headless PNG export for the k-selection diagnostic plot
 
 # ── Config ─────────────────────────────────────────────────────
 python-dotenv>=1.0
