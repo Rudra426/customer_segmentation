@@ -109,7 +109,9 @@ def compute_top_category(clean_df: pd.DataFrame) -> pd.DataFrame:
     Returns a DataFrame indexed by customer_id with:
       - top_category : string label of the most-frequent category (display only),
                        <NA> if the customer has no category data
-      - cat_<name>   : one-hot 0/1 columns (numeric, for clustering)
+      - cat_<name>   : one-hot 0/1 columns (descriptive only; feature_matrix()
+                       excludes them from clustering so K-means groups on
+                       behavior, not product category)
 
     Returns an EMPTY DataFrame (no rows/cols) if product_category is absent or
     entirely null — the assembler then simply omits category features.
@@ -156,6 +158,8 @@ def engineer_features(clean_df: pd.DataFrame, snapshot=None) -> pd.DataFrame:
     Combines: recency, frequency, monetary, aov, clv, tenure, and (if available)
     the top_category label + cat_* one-hot columns. Indexed by customer_id.
     Every column is numeric except the optional "top_category" display label.
+    The cat_* one-hots are descriptive only — feature_matrix() drops them so
+    clustering runs on behavior (RFM) rather than product category.
     """
     parts = [
         compute_recency(clean_df, snapshot),
@@ -178,8 +182,22 @@ def engineer_features(clean_df: pd.DataFrame, snapshot=None) -> pd.DataFrame:
 
 
 def feature_matrix(features: pd.DataFrame) -> pd.DataFrame:
-    """Return the numeric-only view (drops display labels) for scaling/clustering."""
-    cols = [c for c in features.columns if c not in _NON_NUMERIC_COLS]
+    """
+    Return the numeric behavioral matrix (RFM/monetary/tenure) for clustering.
+
+    Drops the display label (top_category) AND the cat_* one-hot columns. The
+    one-hots are deliberately EXCLUDED from clustering: with ~10 category axes
+    they dominate the (standardized) K-means distance and split customers by
+    product category instead of behavior, producing clusters that are identical
+    on RFM and therefore all collapse to a single persona. Segmentation here is
+    behavioral, so k-selection, clustering, scoring, and drift all run on RFM
+    only; top_category is retained elsewhere purely as a descriptive attribute.
+    """
+    cols = [
+        c
+        for c in features.columns
+        if c not in _NON_NUMERIC_COLS and not c.startswith("cat_")
+    ]
     return features[cols].astype("float64")
 
 

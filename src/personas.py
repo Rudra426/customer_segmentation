@@ -3,8 +3,11 @@
 personas.py — Phase 6: label clusters with personas and attach actions.
 
 Takes the clustered customer table from cluster.run_clustering() and:
-  6.1 profiles each cluster (size + feature averages + dominant category)
-  6.2 asks the LLM to name each cluster using ONLY the fixed ACTION_MAP personas
+  6.1 profiles each cluster (size + feature averages + dataset-relative bands +
+      dominant category)
+  6.2 asks the LLM to name each cluster using ONLY the fixed ACTION_MAP personas,
+      judging each cluster by its bands relative to THIS dataset (so it works on
+      any dataset) and citing that evidence in its reasoning
   6.3 joins persona -> ACTION_MAP (action, channel, priority)
   6.4 attaches a numeric priority score per customer
   6.5 attaches persona / action columns onto the customer table
@@ -14,6 +17,7 @@ from __future__ import annotations
 
 import json
 
+import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
@@ -24,6 +28,34 @@ _PROFILE_FIELDS = ["recency", "frequency", "monetary", "aov", "clv", "tenure"]
 
 # Fallback persona when the LLM returns an invalid/missing name.
 _FALLBACK_PERSONA = "Low Engagement"
+
+# Ordered relative bands. A cluster's mean for a feature is placed into one of
+# these by comparing it to that feature's distribution ACROSS THIS DATASET's
+# customers (quintile edges). This gives the LLM a dataset-relative sense of
+# "high/low" so persona labeling works on any dataset regardless of the absolute
+# magnitudes (a $37k mean is meaningless without knowing the population spread).
+_BANDS = ["very_low", "low", "mid", "high", "very_high"]
+
+
+def _relative_bands(result: pd.DataFrame, present: list[str]) -> dict[str, dict]:
+    """
+    Per-feature machinery for placing a cluster mean on a dataset-relative band.
+
+    Returns {feature: band} where `band` is a callable mapping a value to one of
+    _BANDS by comparing it to that feature's [q20, q40, q60, q80] quintile edges
+    over the dataset's customers. Whether a feature actually separates the
+    clusters is derived later from the resulting bands (see _separating_features).
+    """
+    info: dict[str, dict] = {}
+    for f in present:
+        col = result[f].to_numpy(dtype="float64")
+        edges = np.quantile(col, [0.2, 0.4, 0.6, 0.8])
+
+        def band(value: float, _edges=edges) -> str:
+            return _BANDS[min(int(np.searchsorted(_edges, value, side="right")), 4)]
+
+        info[f] = {"band": band}
+    return info
 
 
 def profile_clusters(result: pd.DataFrame) -> list[dict]:
@@ -36,15 +68,20 @@ def profile_clusters(result: pd.DataFrame) -> list[dict]:
       size           : number of customers
       share_pct      : % of all customers
       averages       : {feature: rounded mean} for present RFM/monetary fields
+      relative       : {feature: band} — where the cluster's mean sits relative
+                       to THIS dataset's customers (very_low..very_high). This is
+                       the frame the LLM uses to judge "high/low" on any dataset.
       top_category   : most common dominant category in the cluster (or None)
     Clusters are ordered by descending mean monetary when available.
     """
     total = len(result)
     present = [f for f in _PROFILE_FIELDS if f in result.columns]
+    bands = _relative_bands(result, present)
     profiles: list[dict] = []
 
     for cid, grp in result.groupby("cluster"):
         averages = {f: round(float(grp[f].mean()), 2) for f in present}
+        relative = {f: bands[f]["band"](averages[f]) for f in present}
         top_category = None
         if "top_category" in grp.columns and grp["top_category"].notna().any():
             top_category = grp["top_category"].mode(dropna=True)
@@ -55,6 +92,7 @@ def profile_clusters(result: pd.DataFrame) -> list[dict]:
                 "size": int(len(grp)),
                 "share_pct": round(100 * len(grp) / total, 1),
                 "averages": averages,
+                "relative": relative,
                 "top_category": top_category,
             }
         )
@@ -79,6 +117,23 @@ class ClusterLabelList(BaseModel):
     labels: list[ClusterLabel]
 
 
+def _separating_features(profiles: list[dict]) -> tuple[list[str], list[str]]:
+    """
+    Split present features into those that DO vs DON'T separate the clusters.
+
+    A feature separates the clusters if its relative band is not identical for
+    every cluster. Reporting this stops the LLM from inventing behavioral
+    distinctions on a dimension where all clusters actually sit in the same band
+    (the failure mode where 12 near-identical clusters all became one persona).
+    """
+    present = list(profiles[0].get("relative", {})) if profiles else []
+    separating, flat = [], []
+    for f in present:
+        bands = {p["relative"].get(f) for p in profiles}
+        (separating if len(bands) > 1 else flat).append(f)
+    return separating, flat
+
+
 def _build_persona_prompt(profiles: list[dict]) -> str:
     """Describe the fixed personas + cluster profiles for the LLM."""
     persona_lines = []
@@ -86,26 +141,50 @@ def _build_persona_prompt(profiles: list[dict]) -> str:
         info = ACTION_MAP[name]
         persona_lines.append(f"- {name}: priority={info['priority']}, action={info['action']}")
 
+    separating, flat = _separating_features(profiles)
+    sep_txt = ", ".join(separating) if separating else "NONE"
+    flat_txt = ", ".join(flat) if flat else "none"
+
     lines = [
         "You assign a marketing persona to each customer cluster.",
         "",
         "Choose the persona name for each cluster ONLY from this fixed list:",
         *persona_lines,
         "",
-        "Guidance:",
-        "- recency = days since last order (LOW = recently active).",
+        "Each cluster has an `averages` block (raw means) AND a `relative` block.",
+        "The `relative` bands (very_low < low < mid < high < very_high) place each",
+        "cluster's mean against THIS dataset's own customer distribution. ALWAYS",
+        "judge a cluster by its `relative` bands, never by raw magnitudes — a",
+        "monetary of 37000 may be very_low in one dataset and very_high in another.",
+        "",
+        "Field meanings:",
+        "- recency = days since last order; LOW band = recently active, HIGH = gone quiet.",
         "- frequency = number of orders; monetary = total spend; aov = avg order.",
-        "- High frequency + high monetary + low recency => Loyal Big Spenders.",
-        "- High monetary but HIGH recency (gone quiet) => At-Risk High Value.",
-        "- Very new / short tenure / few orders => New Customers.",
-        "- Exactly one purchase, little since => One-Time Buyers.",
-        "- Low spend, low frequency, high recency => Low Engagement.",
-        "- Two clusters MAY share a persona if they fit the same profile.",
+        "- tenure = how long the customer has been active.",
+        "",
+        "Map bands to personas (relative, so this works on any dataset):",
+        "- monetary & frequency high/very_high AND recency low/very_low => Loyal Big Spenders.",
+        "- monetary high/very_high BUT recency high/very_high (gone quiet) => At-Risk High Value.",
+        "- tenure low/very_low AND frequency low/very_low (just arrived) => New Customers.",
+        "- frequency very_low (≈1 order) with low monetary => One-Time Buyers.",
+        "- monetary & frequency low/very_low AND recency high => Low Engagement.",
+        "",
+        "How to differentiate the clusters:",
+        f"- Bands that DIFFER across clusters (use these to tell segments apart): {sep_txt}.",
+        f"- Bands that are IDENTICAL across all clusters (carry no signal): {flat_txt}.",
+        "- If two clusters share the same bands on every separating feature, give them",
+        "  the SAME persona — do not invent a distinction from noise.",
+        "- top_category is a product preference, NOT a lifecycle stage: never let it",
+        "  alone change the persona. If clusters differ ONLY by top_category, they",
+        "  describe the same behavior and should share a persona.",
         "",
         "Cluster profiles:",
         json.dumps(profiles, indent=2),
         "",
-        "Return one label per cluster with a one-sentence reasoning.",
+        "For each cluster return `reasoning` as ONE sentence that CITES the specific",
+        "bands driving the choice (e.g. \"recency=very_low, frequency=high,",
+        "monetary=very_high => Loyal Big Spenders\"). Do not restate the persona",
+        "definition or mention top_category as a reason. Return one label per cluster.",
     ]
     return "\n".join(lines)
 

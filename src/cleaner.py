@@ -471,16 +471,25 @@ def drop_null_required(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
 def drop_duplicate_orders(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     """
-    Remove duplicate order_id rows, keeping the first occurrence.
+    Remove exact duplicate rows (accidental re-scans / re-uploads), keeping the
+    first occurrence.
+
+    IMPORTANT: this checks for full-row duplicates, NOT repeated order_id. A
+    single order legitimately spans multiple rows when it contains several
+    line items (one row per product), so many rows sharing one order_id is
+    normal, not a duplicate — deduping on order_id alone would discard every
+    line item but the first from every multi-item order and catastrophically
+    undercount monetary/frequency. A true duplicate is a row that is identical
+    to another in every column (customer, order, date, value, product, ...).
 
     Returns the deduped frame and a dict:
-      {"duplicates_removed": n, "duplicate_ids": [up to 10 example ids]}.
+      {"duplicates_removed": n, "duplicate_ids": [up to 10 example order ids]}.
     No-op (with order_id absent) is handled gracefully.
     """
     if "order_id" not in df.columns:
         return df.reset_index(drop=True), {"duplicates_removed": 0, "duplicate_ids": []}
 
-    dup_mask = df["order_id"].duplicated(keep="first")
+    dup_mask = df.duplicated(keep="first")
     duplicate_ids = df.loc[dup_mask, "order_id"].unique().tolist()[:10]
 
     cleaned = df[~dup_mask].reset_index(drop=True)

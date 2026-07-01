@@ -21,7 +21,6 @@ from pathlib import Path
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-from sklearn.preprocessing import StandardScaler
 
 # Make project imports work when launched via `streamlit run`.
 ROOT = Path(__file__).resolve().parent
@@ -30,7 +29,7 @@ if str(ROOT) not in sys.path:
 
 from config import AT_RISK_PATTERNS, RAW_DIR, has_api_key  # noqa: E402
 from src.cleaner import clean_data  # noqa: E402
-from src.cluster import run_clustering, save_diagnostic_plot, select_optimal_k  # noqa: E402
+from src.cluster import run_clustering, save_diagnostic_plot, scale_features, select_optimal_k  # noqa: E402
 from src.features import engineer_features, feature_matrix  # noqa: E402
 from src.chat import EXAMPLE_PROMPTS, answer_question  # noqa: E402
 from src.personas import label_customers  # noqa: E402
@@ -272,8 +271,12 @@ def render_segmentation_gate(clean_df, cluster_out, raw_orders_df) -> bool:
         with st.spinner("Validating segmentation against source data..."):
             features = engineer_features(clean_df)
             matrix = feature_matrix(features)
-            # Recompute X independently (don't trust the stored scaler).
-            X = StandardScaler().fit_transform(matrix.to_numpy())
+            # Recompute X independently (don't trust the stored scaler) — but
+            # reuse scale_features() so the QA gate applies the SAME log1p
+            # treatment of skewed monetary columns as the real clustering fit.
+            # A fresh raw StandardScaler here would silently diverge from the
+            # actual model whenever the log-transform list in cluster.py changes.
+            X = scale_features(matrix)[0].to_numpy()
             labels = cluster_out["result"]["cluster"].to_numpy()
             stored_sil = cluster_out["metrics"].get("silhouette")
             kwargs = prepare_validation_inputs(

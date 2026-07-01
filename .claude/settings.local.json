@@ -25,7 +25,9 @@
       "Bash(python -c \"import kaleido; print\\('kaleido', kaleido.__version__\\)\")",
       "Bash(python -c \"import PIL; print\\('PIL ok'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('src/cluster.py'\\).read\\(\\)\\); print\\('cluster.py syntax OK'\\)\")",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(jobs)",
+      "Bash(ps -W)"
     ]
   }
 }

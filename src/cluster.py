@@ -52,16 +52,36 @@ from config import (
 _BASELINE_SAMPLE_CAP = 2000
 
 
+# Columns that are heavily right-skewed (a handful of high-spend customers can
+# be 100-1000x the median). Left un-transformed, a single extreme outlier
+# dominates Euclidean distance after scaling and K-Means degenerates into a
+# "1 outlier vs. everyone else" split instead of a real behavioral segmentation.
+_LOG_TRANSFORM_COLS = ("monetary", "aov", "clv", "frequency")
+
+
 def scale_features(matrix: pd.DataFrame) -> tuple[pd.DataFrame, StandardScaler]:
     """
-    Standardize features to zero mean / unit variance.
+    Log-transform skewed monetary columns, then standardize to zero mean /
+    unit variance.
 
     K-Means uses Euclidean distance, so unscaled features (e.g. monetary in the
-    thousands vs. one-hot 0/1) would dominate. Returns the scaled DataFrame
-    (same index/columns) and the fitted StandardScaler for reuse at scoring time.
+    thousands vs. one-hot 0/1) would dominate. Monetary-ish columns are also
+    heavily right-skewed (a few whale customers vs. a median of single-digit
+    dollars) — scaling those raw lets one extreme customer dominate the whole
+    distance space and collapse K-Means into a degenerate outlier-vs-rest split.
+    log1p compresses that tail before scaling so clusters separate on overall
+    behavior instead of being hijacked by one outlier.
+
+    Returns the scaled DataFrame (same index/columns) and the fitted
+    StandardScaler for reuse at scoring time. NOTE: scoring code must apply the
+    same log1p to these columns before calling scaler.transform().
     """
+    transformed = matrix.copy()
+    log_cols = [c for c in _LOG_TRANSFORM_COLS if c in transformed.columns]
+    transformed[log_cols] = np.log1p(transformed[log_cols].clip(lower=0))
+
     scaler = StandardScaler()
-    scaled = scaler.fit_transform(matrix.to_numpy())
+    scaled = scaler.fit_transform(transformed.to_numpy())
     scaled_df = pd.DataFrame(scaled, index=matrix.index, columns=matrix.columns)
     return scaled_df, scaler
 

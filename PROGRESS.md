@@ -137,14 +137,6 @@ Replaced the old fixed `K_MIN..K_MAX` silhouette-only selection.
 
 ---
 
-### 🔚 Last task — continue where we left
-**Done (2026-06-30):** Phase 5.2★ multi-metric, stability-checked k-selection. The
-clustering module (`src/cluster.py`), `config.py`, the diagnostic plot, and the CLI
-approval gate (`scripts/validate_segmentation.py`) were already in place from the prior
-session; this pass added the missing **unit-test deliverable** (`tests/test_cluster.py`)
-and verified the whole thing end-to-end — `select_optimal_k` recovers k=3 on 3
-well-separated blobs (silhouette 0.93) despite `K_SEARCH_RANGE` going to 15, the
-diagnostic PNG renders (~88 KB), and the full suite is **28/28 green**.
 
 **Next up (not started):** none required for this task. Possible follow-ups if desired —
 wire the same console-style k-selection diagnostic/approval into the Streamlit
