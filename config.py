@@ -17,6 +17,27 @@ from dotenv import load_dotenv
 # ── Load .env (if present) ─────────────────────────────────────────────────
 load_dotenv()
 
+
+def _get_secret(name: str, default: str = "") -> str:
+    """
+    Resolve a config value from the environment first, then Streamlit secrets.
+
+    Locally, `.env` -> os.getenv covers everything. On Streamlit Community
+    Cloud there is no .env file; secrets are entered in the app's Settings ->
+    Secrets panel and exposed via st.secrets instead. Falling back to
+    st.secrets here (rather than requiring it) keeps this file safe to import
+    from non-Streamlit contexts too (src/api.py, scripts, tests) where
+    streamlit may not even be installed/running.
+    """
+    val = os.getenv(name)
+    if val:
+        return val
+    try:
+        import streamlit as st  # local import: optional dependency here
+        return str(st.secrets.get(name, default))
+    except Exception:
+        return default
+
 # ── Paths ──────────────────────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent
 DATA_DIR = ROOT_DIR / "data"
@@ -33,12 +54,12 @@ SEGMENT_MAP_PATH = MODELS_DIR / "segment_map.json"
 DRIFT_LOG_PATH = OUTPUTS_DIR / "drift.log"
 
 # ── LLM (OpenRouter — OpenAI-compatible API) ───────────────────────────────
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct")
+OPENROUTER_API_KEY = _get_secret("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = _get_secret("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # Optional attribution headers OpenRouter uses for app rankings (harmless if unset).
-OPENROUTER_APP_URL = os.getenv("OPENROUTER_APP_URL", "http://localhost")
-OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "customer-segmentation")
+OPENROUTER_APP_URL = _get_secret("OPENROUTER_APP_URL", "http://localhost")
+OPENROUTER_APP_NAME = _get_secret("OPENROUTER_APP_NAME", "customer-segmentation")
 
 # ── Fixed internal schema (DO NOT CHANGE) ──────────────────────────────────
 REQUIRED_FIELDS: dict[str, str] = {
