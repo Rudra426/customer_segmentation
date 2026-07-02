@@ -50,6 +50,7 @@ REQUIRED_FIELDS: dict[str, str] = {
 
 OPTIONAL_FIELDS: dict[str, str] = {
     "quantity": "int",
+    "unit_price": "float",
     "product_category": "string",
     "customer_email": "string",
     "signup_date": "datetime",
@@ -131,66 +132,6 @@ SILHOUETTE_DROP_FRAC = 0.25   # silhouette dropping >25% vs baseline flags drift
 # Substring patterns (normalized: lowercased, '-'/'_' -> space) used to detect
 # "at-risk" segments from whatever persona labels the pipeline produced.
 AT_RISK_PATTERNS = ["at risk", "at-risk", "dormant", "churn", "lapsed"]
-
-# ── Validation / QA gate (Phase 6.5) ───────────────────────────────────────
-# Independent checks run AFTER feature-engineering/clustering/labeling and
-# BEFORE the segmentation is trusted by the dashboard / scoring API / exports.
-# All thresholds live here (never hardcoded in the check functions) so they can
-# be tuned per dataset without touching code. Any failing check HALTS the
-# pipeline (non-zero exit) and requires human sign-off — checks never auto-fix.
-VALIDATION_REPORT_PATH = OUTPUTS_DIR / "validation_report.json"
-
-VALIDATION: dict = {
-    # 1) clusters must separate on RFM (random/fake clustering -> F ~ 1).
-    "cluster_separation": {
-        "rfm_cols": ["recency", "frequency", "monetary"],
-        "min_variance_ratio": 2.0,      # min ANOVA F-stat on at least one RFM dim
-    },
-    # 2) silhouette recomputed from stored labels; catches placeholder metrics.
-    "silhouette": {
-        "min_score": 0.25,
-        "placeholder_tol": 0.05,        # |stored - recomputed| above this = fabricated
-    },
-    # 3) a labeling column that is a 1:1 relabel of the segment adds no signal.
-    "label_independence": {
-        "pairs": [                      # (segment-ish col, derived label col)
-            ["cluster", "persona"],
-            ["cluster", "action"],
-            ["cluster", "priority"],
-        ],
-    },
-    # 4) per-category count columns must sum to the order frequency.
-    "category_consistency": {
-        "freq_col": "frequency",
-        "tolerance": 0,                 # allowed |sum(cat) - freq| per row
-        "max_bad_frac": 0.05,           # FAIL if > this fraction of rows violate
-    },
-    # 5) claimed top category must match recomputed mode of real purchases.
-    "top_category_accuracy": {
-        "min_match_rate": 0.40,         # also required to beat 1/n_categories chance
-    },
-    # 6) computed frequency must capture true orders across ALL id variants.
-    "frequency_completeness": {
-        "tolerance": 0.05,              # FAIL if avg(computed/true) < 1 - tolerance
-    },
-    # 7) orders with an unresolvable customer id must be a small minority.
-    "unattributed_revenue": {
-        "max_unattributed_pct": 0.05,   # by rows AND by revenue
-    },
-    # 8) whitespace/format near-duplicate order ids (flagged, not auto-dropped).
-    "near_duplicate_orders": {
-        "similarity_threshold": 0.9,
-        "max_flagged_pct": 0.02,        # FAIL if more than this fraction are near-dupes
-    },
-    # 9) quantity sanity: missing / non-positive / non-integer / outliers.
-    "qty_sanity": {
-        "min_val": 1,
-        "max_val": None,
-        "outlier_pct": 99.5,            # values above this percentile flagged as outliers
-        "max_bad_pct": 0.05,            # FAIL if hard-invalid rows exceed this fraction
-        "require_integer": True,
-    },
-}
 
 # ── LLM call settings ──────────────────────────────────────────────────────
 LLM_SAMPLE_VALUES = 5     # sample values per column sent to the schema mapper

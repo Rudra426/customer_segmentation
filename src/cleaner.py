@@ -451,6 +451,42 @@ def coerce_types(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def derive_order_value(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """
+    Compute order_value = quantity * unit_price when order_value was not
+    directly provided (or is null on some rows) but both quantity and
+    unit_price are present.
+
+    Some exports (e.g. the UCI/Kaggle "Online Retail" dataset) only have a
+    PER-UNIT price column alongside quantity, with no single "order total"
+    column. Without this step, order_value would either be left unmapped
+    (rejecting an otherwise-valid file) or the schema mapper would map a
+    per-unit price straight to order_value, silently undercounting every
+    order by roughly the average quantity per line (e.g. $2.55/unit reported
+    as the whole order's value instead of quantity * $2.55).
+
+    Only fills rows where order_value is missing — an explicitly-provided
+    order_value is never overwritten. Rows missing quantity or unit_price stay
+    null for drop_null_required to handle. No-op if either input column is
+    absent.
+
+    Returns the frame (order_value added/backfilled) and a dict:
+      {"derived": bool, "rows_computed": n}.
+    """
+    if "quantity" not in df.columns or "unit_price" not in df.columns:
+        return df, {"derived": False, "rows_computed": 0}
+
+    out = df.copy()
+    if "order_value" not in out.columns:
+        out["order_value"] = pd.Series(float("nan"), index=out.index, dtype="float64")
+
+    missing_mask = out["order_value"].isna()
+    computed = out["quantity"].astype("float64") * out["unit_price"].astype("float64")
+    out.loc[missing_mask, "order_value"] = computed[missing_mask]
+
+    return out, {"derived": True, "rows_computed": int(missing_mask.sum())}
+
+
 def drop_null_required(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     """
     Drop rows missing any required field; report per-field null counts.
@@ -575,6 +611,7 @@ def clean_data(
     Order of operations:
       1. detect_multicurrency  (on raw strings, before symbols are stripped)
       2. coerce_types          (separator-aware dates, robust money/quantity)
+      2b. derive_order_value   (quantity * unit_price when no total column exists)
       3. normalize_customer_ids (unify same-customer ids in mixed formats)
       4. normalize_order_ids    (null out DUPLICATE/blank placeholders, strip '#')
       5. normalize_categories   (fix case/whitespace/typos to canonical set)
@@ -594,6 +631,13 @@ def clean_data(
         warnings.append(currency["warning"])
 
     df = coerce_types(raw_normalized)
+    df, derive_info = derive_order_value(df)
+    if derive_info["derived"] and derive_info["rows_computed"]:
+        warnings.append(
+            f"order_value computed as quantity * unit_price for "
+            f"{derive_info['rows_computed']} row(s) (no direct order-total "
+            "column was available)."
+        )
     df, id_info = normalize_customer_ids(df)
     if id_info["merged_groups"]:
         warnings.append(

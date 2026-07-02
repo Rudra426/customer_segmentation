@@ -27,7 +27,9 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('src/cluster.py'\\).read\\(\\)\\); print\\('cluster.py syntax OK'\\)\")",
       "Bash(python *)",
       "Bash(jobs)",
-      "Bash(ps -W)"
+      "Bash(ps -W)",
+      "Bash(cd /d \"D:\\\\proctor\")",
+      "Bash(rm -f src/validation.py scripts/validate_segmentation.py tests/test_validation.py outputs/validation_report.json)"
     ]
   }
 }

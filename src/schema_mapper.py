@@ -180,7 +180,17 @@ def _build_mapping_prompt(profile: list[dict]) -> str:
         "- Use the column NAME and the SAMPLE VALUES to decide.",
         "- Never map two raw columns to the same internal field; if several "
         "could fit, pick the best and map the rest to 'none'.",
-        "- order_value = the monetary total of an order (may contain $ or commas).",
+        "- order_value = the TOTAL monetary value of the order/line (already "
+        "computed — e.g. 'Total', 'Line Total', 'Amount', 'Grand Total'; may "
+        "contain $ or commas).",
+        "- unit_price = a PER-UNIT price (e.g. 'Unit Price', 'Price Each', "
+        "'Rate') that must be multiplied by quantity to get a total. If the "
+        "file has ONLY a per-unit price and a separate quantity column, with "
+        "NO column that is already an order/line total, map the price column "
+        "to 'unit_price' (NOT 'order_value') — the total will be computed "
+        "downstream as quantity * unit_price. Never map a per-unit price to "
+        "'order_value' directly, since that would silently undercount every "
+        "order's true value.",
         "- order_date = when the order was placed; signup_date = account creation.",
         "- Set confidence in [0,1] reflecting how sure you are.",
         "",
@@ -254,8 +264,21 @@ def validate_mapping(mappings: list[dict]) -> dict:
     # Duplicate targets: same internal field claimed by >1 confident column.
     duplicate_targets = {f: raws for f, raws in target_to_raws.items() if len(raws) > 1}
 
-    mapped_required = [f for f in REQUIRED_FIELDS if f in target_to_raws]
-    missing_required = [f for f in REQUIRED_FIELDS if f not in target_to_raws]
+    # order_value can be satisfied directly, OR derived downstream as
+    # quantity * unit_price when the file only has a per-unit price (e.g. the
+    # UCI/Kaggle-style "Online Retail" export). Treat that combination as
+    # meeting the requirement so we don't reject/flag a file that has the
+    # data, just not as a single pre-computed total column.
+    order_value_derivable = (
+        "order_value" not in target_to_raws
+        and "quantity" in target_to_raws
+        and "unit_price" in target_to_raws
+    )
+    mapped_required = [
+        f for f in REQUIRED_FIELDS
+        if f in target_to_raws or (f == "order_value" and order_value_derivable)
+    ]
+    missing_required = [f for f in REQUIRED_FIELDS if f not in mapped_required]
 
     messages: list[str] = []
     suggestions: list[str] = []
@@ -310,6 +333,11 @@ def validate_mapping(mappings: list[dict]) -> dict:
     else:
         status = "ok"
         messages.append("All required fields mapped with high confidence.")
+        if order_value_derivable:
+            messages.append(
+                "No direct order-total column found; order_value will be computed "
+                "as quantity * unit_price."
+            )
 
     return {
         "status": status,

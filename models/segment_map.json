@@ -1,24 +1,10 @@
 {
-  "2": {
+  "1": {
     "persona": "Loyal Big Spenders",
     "action": "Send early access to new products / VIP perks",
     "channel": "Email + SMS",
     "priority": "retain",
     "priority_score": 4
-  },
-  "1": {
-    "persona": "New Customers",
-    "action": "Onboarding email series + second-purchase incentive",
-    "channel": "Email",
-    "priority": "convert",
-    "priority_score": 3
-  },
-  "3": {
-    "persona": "At-Risk High Value",
-    "action": "Win-back discount within 7 days",
-    "channel": "Email",
-    "priority": "urgent",
-    "priority_score": 5
   },
   "0": {
     "persona": "Low Engagement",

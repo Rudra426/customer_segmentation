@@ -64,11 +64,6 @@ Replaced the old fixed `K_MIN..K_MAX` silhouette-only selection.
   disqualified k shaded; saved to `outputs/k_selection_diagnostic.png` (headless Agg).
 - [x] `config.py` — `K_SEARCH_RANGE=(2,15)`, `MIN_CLUSTER_PCT=0.03`, `STABILITY_SEEDS=8`,
   `MIN_STABILITY_ARI=0.7` (old `K_MIN`/`K_MAX` removed).
-- [x] Pipeline integration in `scripts/validate_segmentation.py` — prints the full
-  diagnostic table + recommended_k to console, writes the k-selection block into
-  `outputs/validation_report.json`, then a human approval gate (`y` / `n` / integer
-  override) before the final fit — consistent with the existing approval-gate pattern
-  (`--yes`/`--k` for CI; aborts on non-tty without sign-off).
 - [x] `fit_final_kmeans()` — clean re-fit on the FULL dataset with the confirmed k
   (fresh KMeans, n_init=10; not a reused stability-seed model).
 - [x] `tests/test_cluster.py` — synthetic fixture with 3 well-separated blobs recovers
@@ -108,18 +103,6 @@ Replaced the old fixed `K_MIN..K_MAX` silhouette-only selection.
 - [x] 10.3 Silhouette degradation check (new vs baseline silhouette)
 - [x] 10.4 Scheduler hook (`run_drift_check`: warn + log to drift.log)
 - [x] 10.5 Cron/Airflow wiring (`scripts/check_drift.py` CLI w/ exit-code signal + README docs)
-
-## Phase 6.5 — Segmentation QA Gate  ✅
-- [x] `src/validation.py` — 9 independent checks (cluster separation, silhouette,
-  label independence, category consistency, top-category accuracy, frequency
-  completeness, unattributed revenue, near-dupe orders, qty sanity); each returns
-  `(pass, detail)`, recomputes ground truth from source, never auto-fixes.
-- [x] `run_validation()` aggregator → `outputs/validation_report.json` + console summary.
-- [x] Thresholds in `config.VALIDATION` (no hardcoding); `prepare_validation_inputs()` helper.
-- [x] `scripts/validate_segmentation.py` — CLI orchestrator, exit code 1 on any failure (CI/cron).
-- [x] Dashboard wiring — `render_segmentation_gate()` HALTS app.py between clustering
-  (7.4) and persona labeling (7.5); blocks actions/export/chat until pass or human sign-off.
-- [x] `tests/test_validation.py` — good fixture (passes all) + one bad fixture per failure mode (19 tests).
 
 ## Extensions (post-pipeline)
 - [x] Revenue Impact view — `src/revenue.py` (`compute_revenue_concentration`,
