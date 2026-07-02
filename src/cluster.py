@@ -48,10 +48,6 @@ from config import (
     ensure_dirs,
 )
 
-# Cap the per-feature baseline sample stored for drift detection (Phase 10).
-_BASELINE_SAMPLE_CAP = 2000
-
-
 # Columns that are heavily right-skewed (a handful of high-spend customers can
 # be 100-1000x the median). Left un-transformed, a single extreme outlier
 # dominates Euclidean distance after scaling and K-Means degenerates into a
@@ -352,23 +348,6 @@ def compute_umap(scaled_df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def _baseline(matrix: pd.DataFrame) -> dict:
-    """Per-feature stats + a capped value sample, stored for drift detection."""
-    stats = {}
-    sample = {}
-    for col in matrix.columns:
-        s = matrix[col].astype(float)
-        stats[col] = {
-            "mean": round(float(s.mean()), 4),
-            "std": round(float(s.std(ddof=0)), 4),
-            "min": round(float(s.min()), 4),
-            "max": round(float(s.max()), 4),
-            "median": round(float(s.median()), 4),
-        }
-        sample[col] = s.head(_BASELINE_SAMPLE_CAP).round(4).tolist()
-    return {"stats": stats, "sample": sample}
-
-
 def save_artifacts(scaler: StandardScaler, model: KMeans, metadata: dict) -> None:
     """Persist scaler + model (joblib) and metadata (JSON) into models/."""
     ensure_dirs()
@@ -402,7 +381,7 @@ def run_clustering(
       scaler    : fitted StandardScaler
       model      : fitted KMeans (final, full-data fit)
       metrics    : cluster_metrics() dict
-      metadata   : everything persisted (feature order, k-selection, metrics, baseline)
+      metadata   : everything persisted (feature order, k-selection, metrics)
       selection  : the k-selection result (table, recommended_k, ...)
     """
     from src.features import feature_matrix
@@ -438,7 +417,6 @@ def run_clustering(
         "metrics": metrics,
         "n_customers": int(matrix.shape[0]),
         "created_utc": pd.Timestamp.now(tz="UTC").isoformat(),
-        "drift_baseline": _baseline(matrix),
     }
 
     if save:

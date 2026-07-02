@@ -190,7 +190,7 @@ def feature_matrix(features: pd.DataFrame) -> pd.DataFrame:
     they dominate the (standardized) K-means distance and split customers by
     product category instead of behavior, producing clusters that are identical
     on RFM and therefore all collapse to a single persona. Segmentation here is
-    behavioral, so k-selection, clustering, scoring, and drift all run on RFM
+    behavioral, so k-selection, clustering, and scoring all run on RFM
     only; top_category is retained elsewhere purely as a descriptive attribute.
     """
     cols = [

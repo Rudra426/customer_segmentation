@@ -1,7 +1,7 @@
 """
 chat.py — Phase 9: natural-language Q&A over the labeled customer table.
 
-Approach (Option A): the LLM writes pandas code against the DataFrame, we execute
+Approach : the LLM writes pandas code against the DataFrame, we execute
 it in a restricted sandbox, then the LLM explains the result in plain English.
 
 Built step by step:

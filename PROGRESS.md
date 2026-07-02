@@ -1,7 +1,7 @@
 # 📊 Project Progress — E-Commerce Customer Segmentation Pipeline
 
 **LLM provider:** OpenRouter · **Model:** `meta-llama/llama-3.3-70b-instruct`
-**Python:** 3.13.3 · **Last updated:** Phase 10 COMPLETE — all phases done 🎉
+**Python:** 3.13.3 · **Last updated:** Phase 9 COMPLETE — all phases done 🎉
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started
 
@@ -47,7 +47,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started
 - [x] 5.2 K-Means k-selection — **multi-metric + stability-checked** (see Phase 5.2★ below)
 - [x] 5.3 Davies-Bouldin score (+ metrics dict)
 - [x] 5.4 UMAP 2D projection (n_neighbors clamped to sample size)
-- [x] 5.5 Persist artifacts (joblib + JSON metadata, drift baseline) + `run_clustering()`
+- [x] 5.5 Persist artifacts (joblib + JSON metadata) + `run_clustering()`
 
 ## Phase 5.2★ — Multi-metric, stability-checked k-selection  ✅
 Replaced the old fixed `K_MIN..K_MAX` silhouette-only selection.
@@ -96,13 +96,6 @@ Replaced the old fixed `K_MIN..K_MAX` silhouette-only selection.
 - [x] 9.2 NL → pandas (LLM writes `result = ...` snippet)
 - [x] 9.3 Safe execution sandbox (token denylist + whitelisted builtins)
 - [x] 9.4 Explain result in plain English
-
-## Phase 10 — Drift Detection & Retraining Hook  ✅
-- [x] 10.1 Baseline capture (loader; baseline persisted at train time)
-- [x] 10.2 KS-test per feature (new vs training sample)
-- [x] 10.3 Silhouette degradation check (new vs baseline silhouette)
-- [x] 10.4 Scheduler hook (`run_drift_check`: warn + log to drift.log)
-- [x] 10.5 Cron/Airflow wiring (`scripts/check_drift.py` CLI w/ exit-code signal + README docs)
 
 ## Extensions (post-pipeline)
 - [x] Revenue Impact view — `src/revenue.py` (`compute_revenue_concentration`,

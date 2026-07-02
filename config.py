@@ -26,8 +26,8 @@ def _get_secret(name: str, default: str = "") -> str:
     Cloud there is no .env file; secrets are entered in the app's Settings ->
     Secrets panel and exposed via st.secrets instead. Falling back to
     st.secrets here (rather than requiring it) keeps this file safe to import
-    from non-Streamlit contexts too (src/api.py, scripts, tests) where
-    streamlit may not even be installed/running.
+    from non-Streamlit contexts too (scripts, tests) where streamlit may not
+    even be installed/running.
     """
     val = os.getenv(name)
     if val:
@@ -50,8 +50,6 @@ OUTPUTS_DIR = ROOT_DIR / "outputs"
 SCALER_PATH = MODELS_DIR / "scaler.joblib"
 KMEANS_PATH = MODELS_DIR / "kmeans.joblib"
 METADATA_PATH = MODELS_DIR / "model_metadata.json"
-SEGMENT_MAP_PATH = MODELS_DIR / "segment_map.json"
-DRIFT_LOG_PATH = OUTPUTS_DIR / "drift.log"
 
 # ── LLM (OpenRouter — OpenAI-compatible API) ───────────────────────────────
 OPENROUTER_API_KEY = _get_secret("OPENROUTER_API_KEY", "")
@@ -144,10 +142,6 @@ DIAGNOSTIC_PLOT_PATH = OUTPUTS_DIR / "k_selection_diagnostic.png"
 
 # Assumed gross margin used for the simple CLV proxy (profit contribution).
 CLV_MARGIN = 0.30
-
-# ── Drift detection (Phase 10) ─────────────────────────────────────────────
-DRIFT_ALPHA = 0.05            # KS-test p-value below this flags feature drift
-SILHOUETTE_DROP_FRAC = 0.25   # silhouette dropping >25% vs baseline flags drift
 
 # ── Revenue Impact view ────────────────────────────────────────────────────
 # Substring patterns (normalized: lowercased, '-'/'_' -> space) used to detect

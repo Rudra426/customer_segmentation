@@ -249,7 +249,7 @@ def priority_score(priority: str) -> int:
     return int(PRIORITY_SCORE.get(priority, 0))
 
 
-def label_customers(result: pd.DataFrame, save_map: bool = True) -> dict:
+def label_customers(result: pd.DataFrame) -> dict:
     """
     Full Phase 6 pipeline: profile clusters -> LLM personas -> actions ->
     attach per-customer columns.
@@ -281,30 +281,7 @@ def label_customers(result: pd.DataFrame, save_map: bool = True) -> dict:
         segments.append(seg)
     segments.sort(key=lambda s: s["priority_score"], reverse=True)
 
-    # Persist cluster -> persona/action map so the scoring API (Phase 8) can use it.
-    if save_map:
-        save_segment_map(enriched)
-
     return {"labeled": labeled, "segments": segments}
-
-
-def save_segment_map(enriched: dict[int, dict]) -> None:
-    """Write the cluster -> {persona, action, channel, priority} map to disk."""
-    from config import SEGMENT_MAP_PATH, ensure_dirs
-
-    ensure_dirs()
-    payload = {
-        str(cid): {
-            "persona": info["persona"],
-            "action": info["action"],
-            "channel": info["channel"],
-            "priority": info["priority"],
-            "priority_score": priority_score(info["priority"]),
-        }
-        for cid, info in enriched.items()
-    }
-    with open(SEGMENT_MAP_PATH, "w", encoding="utf-8") as fh:
-        json.dump(payload, fh, indent=2)
 
 
 if __name__ == "__main__":
