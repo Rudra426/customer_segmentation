@@ -181,7 +181,7 @@ def answer_question(df: pd.DataFrame, question: str) -> dict:
                 "out_of_scope": False}
 
     explanation = explain_result(question, result)
-    return {"code": code, "result": result, "explanation": explanation,
+    return {"result": result, "explanation": explanation,
             "error": None, "out_of_scope": False}
 
 

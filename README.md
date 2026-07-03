@@ -48,9 +48,6 @@ cp .env.template .env
 ```bash
 # Streamlit dashboard (Phase 7)
 streamlit run app.py
-
-# FastAPI real-time scoring endpoint (Phase 8)
-uvicorn src.api:app --reload
 ```
 
 ---
@@ -101,5 +98,5 @@ recommended action, channel, and priority (see `ACTION_MAP` in `config.py`):
 
 ## 📈 Tech stack
 
-pandas · scikit-learn · openai (OpenRouter) · streamlit · fastapi · uvicorn · joblib ·
+pandas · scikit-learn · openai (OpenRouter) · streamlit · joblib ·
 umap-learn · shap · openpyxl · plotly · python-dotenv
