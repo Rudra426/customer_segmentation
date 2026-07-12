@@ -50,7 +50,7 @@ def _init_state() -> None:
     """Initialize session_state keys used across the flow."""
     defaults = {
         "uploaded_name": None,  # name of the file currently loaded
-        "mapping_session": None,  # output of run_schema_mapping()
+        "mapping_session": None,  #1 output of run_schema_mapping()
         "normalized_df": None,  # schema-normalized DataFrame (Phase 2 output)
         "clean_df": None,  # cleaned DataFrame (Phase 3)
         "report": None,  # validation report
@@ -434,7 +434,7 @@ def main() -> None:
 
     st.title("E-Commerce Customer Segmentation")
     st.caption(
-        "Upload a messy CSV/Excel export, auto-map columns, clean, segment "
+        "Upload a raw CSV/Excel export, auto-map columns, clean, segment "
         "customers, and get recommended actions."
     )
 

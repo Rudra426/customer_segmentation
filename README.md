@@ -6,8 +6,6 @@ custom) and get back labeled customer segments with recommended marketing action
 
 **LLM provider:** OpenRouter · **Default model:** `meta-llama/llama-3.3-70b-instruct`
 
-> ⚠️ Status: under active development — see [`PROGRESS.md`](PROGRESS.md) for what's built.
-
 ---
 
 ## ✨ What it does
